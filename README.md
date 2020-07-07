@@ -12,4 +12,10 @@
 4. 可设置有/无目标的比例
 5. 无需缩放
 
-
+路径结构：
+- image_segmentation_demo/
+    - data/
+        - src/
+            - image/
+- label/
+    - 生成的数据集的目录，以dataset_yyyymmdd为目录名，例如 dataset_20200707
