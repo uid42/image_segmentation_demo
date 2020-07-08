@@ -83,10 +83,15 @@ class UpBlock(nn.Module):
         self.sideconnect=sideconnect
 
         if upsample_method == "conv_transpose":
-            self.upsample = nn.ConvTranspose2d(chin, chout, kernel_size=2, stride=2)
+            self.upsample = nn.Sequential(
+                nn.ConvTranspose2d(chin, chout, kernel_size=2, stride=2, bias=False),
+                nn.BatchNorm2d(chout)
+            )
+
         elif upsampling_method == "bilinear":
             self.upsample = nn.Sequential(
                 nn.Upsample(mode='bilinear', scale_factor=2),
+
                 nn.Conv2d(chin, chout, kernel_size=1, stride=1)
             )
         if sideconnect=='add':
