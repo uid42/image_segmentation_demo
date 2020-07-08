@@ -56,6 +56,16 @@ class Bridge(nn.Module):
         else:
             self.conv2 = Conv_Bn_ReLu(ch,ch)
 
+        self.initialize_BnPreAdd()
+
+
+    def initialize_BnPreAdd(self):
+        """
+        如果有残差连接，则把与残差连接相加处初始化为0
+        """
+        if self.with_shortcut:
+            nn.init.zeros_(self.conv2.bn.weight)
+
     def forward(self, x):
         out = self.conv1(x)
         out = self.conv2(x)
@@ -81,18 +91,17 @@ class UpBlock(nn.Module):
         """
         super().__init__()
         self.sideconnect=sideconnect
+        self.upsample_method = upsample_method
 
         if upsample_method == "conv_transpose":
             self.upsample = nn.Sequential(
                 nn.ConvTranspose2d(chin, chout, kernel_size=2, stride=2, bias=False),
                 nn.BatchNorm2d(chout)
             )
-
         elif upsampling_method == "bilinear":
             self.upsample = nn.Sequential(
                 nn.Upsample(mode='bilinear', scale_factor=2),
-
-                nn.Conv2d(chin, chout, kernel_size=1, stride=1)
+                Conv_Bn_ReLu(chin,chout,1,padding=0,with_nonlinearity=False)
             )
         if sideconnect=='add':
             chmid = chout;
@@ -100,6 +109,20 @@ class UpBlock(nn.Module):
             chmid = chout + chside;
         self.conv1 = Conv_Bn_ReLu(chmid, chout)
         self.conv2 = Conv_Bn_ReLu(chout, chout)
+
+        if sideconnect=='add':
+            self.initialize_BnPreAdd()
+
+
+    def initialize_BnPreAdd(self):
+        """
+        如果侧向连接方式为add，则把与侧向连接相加处初始化为0
+        """
+        if self.upsample_method == "conv_transpose":
+            nn.init.zeros_(self.upsample[1].weight)
+        elif self.upsampling_method == "bilinear":
+            nn.init.zeros_(self.upsample[1].bn.weight)
+
 
     def forward(self, upx, sidex):
         """
@@ -158,6 +181,7 @@ class Resnet_UNet(nn.Module):
         self.up_blocks = nn.ModuleList(up_blocks)
 
         self.head = nn.Conv2d(uppath_chs[0], n_classes, kernel_size=1, stride=1)
+
 
     def forward(self, x, with_output_feature_map=False):
         sides = []
