@@ -13,7 +13,7 @@ from torch import nn
 
 
 #================================================
-from torch.nn import functional
+from torch.nn import functional as F
 
 
 #================================================
@@ -72,7 +72,7 @@ class Bridge(nn.Module):
 
         if self.with_shortcut:
             out += x
-            out = functional.relu(out)
+            out = F.relu(out)
         return out
 
 
@@ -199,7 +199,7 @@ class Resnet_UNet(nn.Module):
             x = m(x,sidex)
 
         x = self.head(x)
-
+        x = F.sigmoid(x)
         return x
 
 
