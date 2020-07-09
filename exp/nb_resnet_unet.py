@@ -36,7 +36,7 @@ class Conv_Bn_ReLu(nn.Module):
         x = self.conv(x)
         x = self.bn(x)
         if self.with_nonlinearity:
-            x = functional.relu(x)
+            x = F.relu(x)
         return x
 
 
