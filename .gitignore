@@ -10,3 +10,7 @@ exp/__pycache__/
 
 # models
 /models/
+
+# log
+run_log/
+tb_log/
