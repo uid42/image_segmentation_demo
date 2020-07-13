@@ -65,6 +65,11 @@ def balance_bce(input, target, balance_ratio=0):
 
 
 #================================================
+def combo_loss(input,target,balance_ratio=0):
+    return dice_loss(input,target)+balance_bce(input,target,balance_ratio)
+
+
+#================================================
 def mask_iou(input, target):
     """
     iou for segmentation
