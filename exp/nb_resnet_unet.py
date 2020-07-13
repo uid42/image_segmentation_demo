@@ -199,7 +199,6 @@ class Resnet_UNet(nn.Module):
             x = m(x,sidex)
 
         x = self.head(x)
-        x = F.sigmoid(x)
         return x
 
 
