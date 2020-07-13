@@ -28,7 +28,7 @@ def get_y(x, ds_rootdir, imgdir, maskdir):
 
 
 #================================================
-def get_databunch(ds_root_dir = 'dataset_20200708', ds_imgdir = 'image'
+def get_databunch(ds_root_dir = 'dataset_20200708', device=torch.device('cuda'), ds_imgdir = 'image'
                   , ds_maskdir = 'mask', bs = 16, valid_pct = 0.2
                   , transforms = get_transforms(max_zoom = 1.)):
     '''
