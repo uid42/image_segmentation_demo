@@ -27,6 +27,7 @@ from exp import nb_loss_metrics
 from exp import nb_optimizer
 from exp import nb_tensorboard_callback
 from exp import nb_scheduling_train
+from exp import nb_databunch
 
 
 #================================================
@@ -130,11 +131,6 @@ def multi_train(get_learn, epoch_len, epochs, opts, lrs, checkpoints, tb_log_roo
 
 
 #================================================
-# 设置device
-device = torch.device('cuda')
-
-
-#================================================
 def split_model(model):
     group0 = ModuleList()
     group1 = ModuleList()
@@ -157,7 +153,7 @@ def split_model(model):
 #================================================
 def get_learn(data):
     # create model
-    model = nb_resnet_unet.get_unet_res18()
+    model = nb_resnet_unet.get_unet_res18(1,True)
     model.load_state_dict(torch.load('./models/unet_res18_allres_init.pth'));
 
     # create learner
@@ -168,12 +164,16 @@ def get_learn(data):
 
     # set multi-gpu
     if data.device.type=='cuda':
-        learn.model = torch.nn.DataParallel(learn.model,device_ids=[0,1])
+        learn.model = torch.nn.DataParallel(learn.model,device_ids=[0,1,2,3])
 
     # set loss func
-    learn.loss_func = nb_loss_metrics.dice_loss
+#     learn.loss_func = partial(nb_loss_metrics.combo_loss, balance_ratio=1)
+#     learn.loss_func = nb_loss_metrics.dice_loss
+    learn.loss_func = partial(nb_loss_metrics.balance_bce, balance_ratio=1)
 
     # 添加metrics
+    learn.metrics += [nb_loss_metrics.dice_loss]
+    learn.metrics += [partial(nb_loss_metrics.balance_bce,balance_ratio=1)]
     learn.metrics += [nb_loss_metrics.mask_iou]
 
     return learn
@@ -215,10 +215,13 @@ def fit(learn,epoch_len,epochs,lr,callbacks):
 
 
 #================================================
-# get databunch
-# ds = './data/tiny_ds_20200331'
-ds = './data/ds_20200428'
-data = nb_databunch.get_databunch(data_root=ds, bs=32, device=device, cache=False)
+# 设置device
+device = torch.device('cuda')
+
+
+#================================================
+ds = './data/dataset_20200708'
+data = nb_databunch.get_databunch(ds, bs=16, device=device)
 
 
 #================================================
@@ -226,11 +229,11 @@ opts = [partial(nb_optimizer.Adam, betas=(0.9,0.99))]
 
 lrs = [1e-3]
 
-checkpoints = []
+checkpoints = [None]
 
 
 #================================================
-multi_train(get_learn=partial(get_learn,data=data,gaf=gaf),
+multi_train(get_learn=partial(get_learn,data=data),
             epoch_len=1e9, epochs=500,
             opts=opts, lrs=lrs, checkpoints=checkpoints,
             tb_log_root='./tb_log/',
