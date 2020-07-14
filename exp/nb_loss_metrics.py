@@ -40,13 +40,14 @@ def weighted_bce(input, target, pos_weight=0):
     """
     pos_weight: positive weight relative to negative weight(which is 1)
     """
+    mask = target.float()
+
     if pos_weight>0:
-        mask = target.float()
         weight = (mask*pos_weight + (1-mask))
         weight = weight/weight.sum()*mask.numel()
-        return F.binary_cross_entropy_with_logits(input, target, weight=weight)
+        return F.binary_cross_entropy_with_logits(input, mask, weight=weight)
     else:
-        return F.binary_cross_entropy_with_logits(input, target)
+        return F.binary_cross_entropy_with_logits(input, mask)
 
 
 #================================================
@@ -54,14 +55,14 @@ def balance_bce(input, target, balance_ratio=0):
     """
     Auto adjust positive/negative ration as set by balance_ratio.
     """
+    mask = target.float()
     if balance_ratio>0:
-        mask = target.float()
         posN = mask.sum().clamp(1)
         negN = (1-mask).sum().clamp(1)
         pos_weight = balance_ratio*negN/posN
-        return weighted_bce(input, target, pos_weight)
+        return weighted_bce(input, mask, pos_weight)
     else:
-        return weighted_bce(input, target)
+        return weighted_bce(input, mask)
 
 
 #================================================
