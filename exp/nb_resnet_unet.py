@@ -199,7 +199,6 @@ class Resnet_UNet(nn.Module):
             x = m(x,sidex)
 
         x = self.head(x)
-        x = F.sigmoid(x)
         return x
 
 
@@ -213,10 +212,10 @@ def get_unet_res18(n_class, allres=True):
     """
     if allres:
         side_connect = 'add'
-        bridge_shortcut = False
+        bridge_shortcut = True
     else:
         side_connect = 'cat'
-        bridge_shortcut = True
+        bridge_shortcut = False
 
     res = Resnet_UNet( resnet=torchvision.models.resnet.resnet18(pretrained=True),
                        dwpath_chs = [3,    64,  64, 128, 256, 512],
@@ -238,10 +237,10 @@ def get_unet_res34(n_class, allres=True):
     """
     if allres:
         side_connect = 'add'
-        bridge_shortcut = False
+        bridge_shortcut = True
     else:
         side_connect = 'cat'
-        bridge_shortcut = True
+        bridge_shortcut = False
 
     res = Resnet_UNet( resnet=torchvision.models.resnet.resnet34(pretrained=True),
                        dwpath_chs = [3,    64,  64, 128, 256, 512],
@@ -263,10 +262,10 @@ def get_unet_res50(n_class, allres=True):
     """
     if allres:
         side_connect = 'add'
-        bridge_shortcut = False
+        bridge_shortcut = True
     else:
         side_connect = 'cat'
-        bridge_shortcut = True
+        bridge_shortcut = False
 
     res = Resnet_UNet( resnet=torchvision.models.resnet.resnet50(pretrained=True),
                        dwpath_chs = [3,   64,  256, 512, 1024, 2048],
