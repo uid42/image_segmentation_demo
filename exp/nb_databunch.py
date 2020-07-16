@@ -17,10 +17,6 @@ import os
 
 
 #================================================
-import torch
-
-
-#================================================
 def get_y(x, ds_rootdir, imgdir, maskdir):
     yfn = os.path.join(ds_rootdir, maskdir, '%s_mask%s' % (x.stem, x.suffix))
     #print(yfn, x.stem, x.suffix)
@@ -28,9 +24,75 @@ def get_y(x, ds_rootdir, imgdir, maskdir):
 
 
 #================================================
-def get_databunch(ds_root_dir = 'dataset_20200708', device=torch.device('cuda'), ds_imgdir = 'image'
+def imgp_CLAHE(pil_img):
+    '''
+    对图片进行限制对比度自适应直方图均衡化
+    '''
+    img = cv2.cvtColor(np.asarray(pil_img),cv2.COLOR_RGB2BGR)
+    #print(img.shape)
+    clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8,8))
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    hsv[:, :, 2] = clahe.apply(hsv[:, :, 2])
+    img2 = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+    ret = PIL.Image.fromarray(cv2.cvtColor(img2,cv2.COLOR_BGR2RGB))
+    return ret
+
+
+
+#================================================
+def custom_split_et(data, valid_pct = 0.2, img_dir = '', val_et_not_in_train = True):
+    '''
+    自定义分割验证集和训练集。这个是针对带有elastic transform生成的数据集的。
+    保证带有变换的图片没有放在验证集里面。
+    同时验证集里面图片对应的带变换的图片也没在训练集里面，也就是被丢弃了(val_et_not_in_train = True)。
+    所以数据总数会可能会少于图片数量(val_et_not_in_train = True的情况下)。
+    带变换图片的文件名格式是 原始图片文件名+ '_et' + 扩展名
+    使用的时候用partial指定valid_pct和img_dir两个参数。
+    参数:
+        data:ItemLists
+        valid_pct：验证集占比
+        img_dir：图片存放路径
+        val_et_not_in_train：验证集里面图片对应的带变换的图片也没在训练集里面.
+    返回值：
+        分割后的ItemLists
+    '''
+    #import pdb; pdb.set_trace()
+    assert len(data.items) > 0, '空数据集?'
+    fns = [o.name for o in os.scandir(img_dir) if o.is_file()]
+    #取出所有的不带_et的文件名。也就是正常的图片
+    fns = [i for i in fns if i.find('_et') < 0]
+    random.shuffle(fns)
+    spidx = int(len(fns) * valid_pct)
+    #验证集和训练集的正常图片列表
+    vals = fns[:spidx]
+    trains = fns[spidx:]
+    #把那些正常图片对应的变形图片加进来到训练集里面。验证集对应的变形图片丢弃
+    trains += [o.replace('.', '_et.') for o in trains]
+    if not val_et_not_in_train:
+        trains += [o.replace('.', '_et.') for o in vals]
+    #生成完整的带路径的图片列表
+    valsfp = [os.path.join(img_dir, o) for o in vals]
+    trainsfp = [os.path.join(img_dir, o) for o in trains]
+    #生成每个图片对应的在data.items里面的index记录
+    sitems = [str(o) for o in data.items]
+
+    tr_idxs = [sitems.index(o) for o in trainsfp]
+    val_idxs = [sitems.index(o) for o in valsfp]
+    assert -1 not in tr_idxs
+    assert -1 not in val_idxs
+    for i in val_idxs:
+        if i in tr_idxs:
+            assert False
+    return data.split_by_idxs(tr_idxs, val_idxs)
+
+
+#================================================
+def get_databunch(ds_root_dir = 'dataset_20200708', ds_imgdir = 'image'
                   , ds_maskdir = 'mask', bs = 16, valid_pct = 0.2
-                  , transforms = get_transforms(max_zoom = 1.)):
+                  , device = torch.device('cuda')
+                  , transforms = get_transforms(max_zoom = 1.)
+                  , img_processor = []
+                  , custom_split = None):
     '''
     获取databunch
     参数：
@@ -39,21 +101,70 @@ def get_databunch(ds_root_dir = 'dataset_20200708', device=torch.device('cuda'),
         ds_maskdir: mask图片子目录
         bs：batch_size
         valid_pct:验证集百分比
+        device: 设备
         transforms: 无缩放，其余默认参数。
+        img_process: 图片处理。取值范围：
+            'CLAHE': 比度自适应直方图均衡化
+        custom_split: 自定义的split方式
+                    现在主要是给带有elastic transform的数据集用
+                    ，保证变形的图片没有分在验证集
+                    ，并且验证集里面的对应的变形图片也没在训练集里面
     返回值：
         databunch
     '''
-    data = SegmentationItemList.from_folder( \
-                    os.path.join(ds_root_dir, ds_imgdir))
+    def imgp_afteropen(pil_img, img_processor):
+        #import pdb; pdb.set_trace()
+        ret = pil_img
+        for imgp in img_processor:
+            if 'CLAHE' == imgp:
+                ret = imgp_CLAHE(ret)
+            else:
+                assert False, '没有实现'
+        return ret
 
-    data = data.split_by_rand_pct(valid_pct)
+    img_processor_func = None
+    if img_processor is not None and len(img_processor) > 0:
+        img_processor_func = partial(imgp_afteropen, img_processor = img_processor)
+
+    #import pdb; pdb.set_trace()
+    data = SegmentationItemList.from_folder(os.path.join(ds_root_dir, ds_imgdir)
+                , after_open = img_processor_func)
+
+    if custom_split is None:
+        data = data.split_by_rand_pct(valid_pct)
+    else:
+        data = custom_split(data)
+
     data = data.label_from_func( \
             partial(get_y, ds_rootdir = ds_root_dir, imgdir = ds_imgdir, maskdir = ds_maskdir) \
             , classes=['bg', 'water'])
 
     #import pdb; pdb.set_trace()
-    data = data.transform(transforms, tfm_y = True)
-    data = data.databunch(bs=bs, num_workers = 0, device=device)
+    if transforms is not None:
+        data = data.transform(transforms, tfm_y = True)
+    data = data.databunch(bs=bs, num_workers = 0, device = device)
     data = data.normalize(imagenet_stats)
+
     return data
 
+#data = get_databunch(bs = 4)
+#data.show_batch()
+
+
+#================================================
+def get_databunch_et(ds_root_dir = 'dataset_20200708', ds_imgdir = 'image'
+          , ds_maskdir = 'mask', bs = 16, valid_pct = 0.2
+          , device = torch.device('cuda')
+          , transforms = get_transforms(max_zoom = 1.)
+          , img_processor = []):
+    '''
+    对get_databunch和custom_split调用的包装
+    '''
+    custom_split = partial(custom_split_et
+                    , img_dir = os.path.join(ds_root_dir, ds_imgdir)
+                    , valid_pct = 0.2)
+    return get_databunch(ds_root_dir = ds_root_dir, ds_imgdir = ds_imgdir
+                    , ds_maskdir = ds_maskdir, bs = bs, valid_pct = valid_pct
+                    , device = device, transforms = transforms
+                    , img_processor = img_processor
+                    , custom_split = custom_split)
