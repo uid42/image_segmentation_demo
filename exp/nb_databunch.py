@@ -17,6 +17,10 @@ import os
 
 
 #================================================
+import numpy as np
+
+
+#================================================
 def get_y(x, ds_rootdir, imgdir, maskdir):
     yfn = os.path.join(ds_rootdir, maskdir, '%s_mask%s' % (x.stem, x.suffix))
     #print(yfn, x.stem, x.suffix)
@@ -74,10 +78,10 @@ def custom_split_et(data, valid_pct = 0.2, img_dir = '', val_et_not_in_train = T
     valsfp = [os.path.join(img_dir, o) for o in vals]
     trainsfp = [os.path.join(img_dir, o) for o in trains]
     #生成每个图片对应的在data.items里面的index记录
-    sitems = [str(o) for o in data.items]
-
-    tr_idxs = [sitems.index(o) for o in trainsfp]
-    val_idxs = [sitems.index(o) for o in valsfp]
+    #只记录文件名不包括目录名。调用的时候参数带'./'会影响到查找
+    sitems = [str(o).split('/')[-1] for o in data.items]
+    tr_idxs = [sitems.index(o.split('/')[-1]) for o in trainsfp]
+    val_idxs = [sitems.index(o.split('/')[-1]) for o in valsfp]
     assert -1 not in tr_idxs
     assert -1 not in val_idxs
     for i in val_idxs:
@@ -90,7 +94,7 @@ def custom_split_et(data, valid_pct = 0.2, img_dir = '', val_et_not_in_train = T
 def get_databunch(ds_root_dir = 'dataset_20200708', ds_imgdir = 'image'
                   , ds_maskdir = 'mask', bs = 16, valid_pct = 0.2
                   , device = torch.device('cuda')
-                  , transforms = get_transforms(max_zoom = 1.)
+                  , transforms = None
                   , img_processor = []
                   , custom_split = None):
     '''
@@ -155,7 +159,7 @@ def get_databunch(ds_root_dir = 'dataset_20200708', ds_imgdir = 'image'
 def get_databunch_et(ds_root_dir = 'dataset_20200708', ds_imgdir = 'image'
           , ds_maskdir = 'mask', bs = 16, valid_pct = 0.2
           , device = torch.device('cuda')
-          , transforms = get_transforms(max_zoom = 1.)
+          , transforms = None
           , img_processor = []):
     '''
     对get_databunch和custom_split调用的包装
